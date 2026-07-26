@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "school-sos-backend",
+  "name": "schoolsos-v1-backend",
   "main": "src/server.ts",
   "compatibility_date": "2026-07-01",
   "observability": {
@@ -10,12 +10,12 @@
     {
       "binding": "DB",
       "database_name": "school-sos-db",
-      "database_id": "<REPLACE_WITH_D1_DATABASE_ID>",
+      "database_id": "59d3c344-9277-4e22-aff4-96428e87d0f9",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
     "ENVIRONMENT": "production",
-    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173,https://school-sos.pages.dev"
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173,https://schoolsos-v1.pages.dev"
   }
 }
