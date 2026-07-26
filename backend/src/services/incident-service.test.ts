@@ -1,118 +1,94 @@
 import { describe, expect, it } from 'vitest'
-import type {
-  ClosureSummaryInput,
-  IncidentAiAssistant,
-  AnalyzeIncidentInput,
-} from '../domain/services/incident-ai-assistant'
 import type { CreateIncidentInput } from '../domain/entities/incident'
-import { ResilientIncidentAi } from '../infrastructure/ai/resilient-incident-ai'
-import { TemplateIncidentAi } from '../infrastructure/ai/template-incident-ai'
-import { MemoryIncidentImageRepository } from '../infrastructure/memory/memory-incident-image-repository'
+import { canTransitionStatus } from '../domain/status-transition'
 import { MemoryIncidentRepository } from '../infrastructure/memory/memory-incident-repository'
-import { MemoryTimelineRepository } from '../infrastructure/memory/memory-timeline-repository'
+import { createClosureSummary } from '../utils/closure-summary'
+import { validateImage } from '../utils/image-validation'
+import { generateIncidentCode } from '../utils/incident-code'
+import { createIncidentSchema } from '../schemas/incident-schemas'
 import { IncidentService } from './incident-service'
 
-class ThrowingAi implements IncidentAiAssistant {
-  async analyzeIncident(_input: AnalyzeIncidentInput): Promise<never> {
-    throw new Error('AI unavailable')
-  }
-
-  async generateClosureSummary(_input: ClosureSummaryInput): Promise<never> {
-    throw new Error('AI unavailable')
-  }
+const base: CreateIncidentInput = {
+  title: 'น้ำรั่วบริเวณบันไดอาคารเรียน',
+  description: 'พบน้ำรั่วบริเวณบันไดและยังมีนักเรียนเดินผ่าน',
+  category: 'BUILDING_AND_FACILITIES',
+  location: 'บันไดอาคารเรียน 1',
+  reportedPriority: 'HIGH',
 }
 
-function createService(ai: IncidentAiAssistant = new TemplateIncidentAi()) {
-  return new IncidentService(
-    new MemoryIncidentRepository(),
-    new MemoryTimelineRepository(),
-    new MemoryIncidentImageRepository(),
-    ai
-  )
-}
+describe('School SOS pure rules', () => {
+  it('allows only forward status transitions', () => {
+    expect(canTransitionStatus('NEW', 'ACKNOWLEDGED')).toBe(true)
+    expect(canTransitionStatus('ACKNOWLEDGED', 'IN_PROGRESS')).toBe(true)
+    expect(canTransitionStatus('IN_PROGRESS', 'RESOLVED')).toBe(true)
+    expect(canTransitionStatus('NEW', 'IN_PROGRESS')).toBe(false)
+    expect(canTransitionStatus('IN_PROGRESS', 'ACKNOWLEDGED')).toBe(false)
+  })
 
-const baseIncidentInput: CreateIncidentInput = {
-  rawDescription: 'มีน้ำรั่วไหลลงมาตรงบันไดและยังมีนักเรียนเดินผ่าน',
-  title: 'น้ำรั่วบริเวณบันไดอาคารเรียน 1',
-  summary: 'พื้นบันไดเปียกและเสี่ยงต่อการลื่นล้ม',
-  category: 'BUILDING',
-  location: 'บันไดอาคารเรียน 1 ระหว่างชั้น 1 และชั้น 2',
-  suggestedPriority: 'HIGH',
-  confirmedPriority: 'HIGH',
-  priorityReason: 'เป็นเส้นทางสัญจรและเสี่ยงต่ออุบัติเหตุ',
-  aiAnalysisSource: 'fallback',
-}
+  it('generates the required incident code format', () => {
+    expect(generateIncidentCode(new Date('2026-07-26T00:00:00Z'), () => 0.039)).toMatch(/^SOS-20260726-[0-9A-F]{4}$/)
+  })
 
-async function createIncident(service: IncidentService) {
-  return service.createIncident(baseIncidentInput)
-}
+  it('creates a deterministic closure summary', () => {
+    const summary = createClosureSummary({
+      id: 'id', code: 'code', ...base, assignedTo: 'ฝ่ายอาคารสถานที่',
+      status: 'IN_PROGRESS', createdAt: 'now', updatedAt: 'now',
+    }, 'ปิดพื้นที่และเปลี่ยนข้อต่อ', 'หยุดน้ำรั่วแล้ว')
+    expect(summary).toContain('ผู้รับผิดชอบ:\nฝ่ายอาคารสถานที่')
+    expect(summary).toContain('สถานะสุดท้าย:\nแก้ไขแล้ว')
+  })
 
-describe('IncidentService', () => {
-  it('creates the base timeline and auto-acknowledges on assignment', async () => {
-    const service = createService()
-    const created = await createIncident(service)
+  it('validates request limits and image signatures', () => {
+    expect(createIncidentSchema.safeParse({ ...base, title: 'x' }).success).toBe(false)
+    expect(() => validateImage('data:image/png;base64,SGVsbG8=', 'image/png')).toThrow('ไม่ตรงกับประเภทไฟล์')
+  })
+})
 
-    const updated = await service.updateIncident(created.incident.id, {
-      assigneeName: 'นายสมชาย',
+describe('IncidentService golden flow', () => {
+  it('creates, assigns, advances, notes and resolves', async () => {
+    const service = new IncidentService(new MemoryIncidentRepository(), () => 'SOS-20260726-A4F9')
+    const created = await service.createIncident(base)
+    expect(created.incident.status).toBe('NEW')
+    expect(created.timeline[0]?.eventType).toBe('INCIDENT_CREATED')
+
+    await expect(service.updateIncident(created.incident.id, {
+      actorName: 'ครูเวร', status: 'IN_PROGRESS',
+    })).rejects.toMatchObject({ code: 'INVALID_STATUS_TRANSITION' })
+
+    let detail = await service.updateIncident(created.incident.id, {
       actorName: 'ครูเวร',
+      assignedTo: 'ฝ่ายอาคารสถานที่',
+      confirmedPriority: 'HIGH',
+      status: 'ACKNOWLEDGED',
     })
-
-    expect(updated.incident.status).toBe('ACKNOWLEDGED')
-    expect(updated.timeline.map(event => event.eventType)).toEqual([
-      'INCIDENT_CREATED',
-      'AI_ANALYZED',
-      'ASSIGNEE_UPDATED',
-      'STATUS_CHANGED',
-    ])
-  })
-
-  it('rejects invalid status transitions and invalid resolve', async () => {
-    const service = createService()
-    const created = await createIncident(service)
-
-    await expect(service.changeStatus(created.incident.id, { status: 'IN_PROGRESS' }))
-      .rejects.toThrow('ไม่สามารถเปลี่ยนสถานะ')
+    expect(detail.incident.status).toBe('ACKNOWLEDGED')
+    detail = await service.updateIncident(created.incident.id, {
+      actorName: 'ฝ่ายอาคารสถานที่', status: 'IN_PROGRESS',
+    })
+    await service.addNote(created.incident.id, {
+      actorName: 'ฝ่ายอาคารสถานที่', message: 'ปิดพื้นที่และติดป้ายเตือนแล้ว',
+    })
+    detail = await service.resolveIncident(created.incident.id, {
+      actorName: 'ฝ่ายอาคารสถานที่',
+      resolutionAction: 'เปลี่ยนข้อต่อท่อน้ำ',
+      resolutionResult: 'หยุดการรั่วและทำความสะอาดแล้ว',
+    })
+    expect(detail.incident.status).toBe('RESOLVED')
+    expect(detail.incident.resolvedAt).toBeTruthy()
+    expect(detail.timeline.at(-1)?.eventType).toBe('INCIDENT_RESOLVED')
     await expect(service.resolveIncident(created.incident.id, {
-      actionTaken: 'เช็ดพื้น',
-      resolutionResult: 'พื้นแห้ง',
-    })).rejects.toThrow('IN_PROGRESS')
+      actorName: 'ฝ่ายอาคารสถานที่',
+      resolutionAction: 'ทำซ้ำ',
+      resolutionResult: 'ทำซ้ำ',
+    })).rejects.toMatchObject({ code: 'INCIDENT_ALREADY_RESOLVED' })
   })
 
-  it('resolves through fallback and records closure timeline', async () => {
-    const ai = new ResilientIncidentAi(new ThrowingAi(), new TemplateIncidentAi())
-    const service = createService(ai)
-    const created = await createIncident(service)
-    await service.updateIncident(created.incident.id, { assigneeName: 'ฝ่ายอาคาร' })
-    await service.changeStatus(created.incident.id, { status: 'IN_PROGRESS' })
-    const resolved = await service.resolveIncident(created.incident.id, {
-      actionTaken: 'ปิดวาล์วและเช็ดพื้น',
-      resolutionResult: 'หยุดน้ำรั่วและเปิดทางเดินได้',
-    })
-
-    expect(resolved.incident.status).toBe('RESOLVED')
-    expect(resolved.incident.aiClosureSource).toBe('fallback')
-    expect(resolved.timeline.at(-1)?.eventType).toBe('CLOSURE_SUMMARY_GENERATED')
-  })
-
-  it('returns an editable fallback analysis when primary AI fails', async () => {
-    const service = createService(new ResilientIncidentAi(new ThrowingAi(), new TemplateIncidentAi()))
-    const result = await service.analyzeIncident({
-      description: 'มีน้ำรั่วตรงบันไดอาคารเรียน',
-      selectedCategory: 'BUILDING',
-      location: 'อาคารเรียน 1',
-      followUpAlreadyAsked: false,
-    })
-
-    expect(result.source).toBe('fallback')
-    expect(result.analysis?.suggestedPriority).toBe('UNASSIGNED')
-  })
-
-  it('rejects image bytes that do not match the declared MIME type', async () => {
-    const service = createService()
-
-    await expect(service.createIncident({
-      ...baseIncidentInput,
-      imageDataUrl: 'data:image/png;base64,SGVsbG8=',
-    })).rejects.toThrow('ไม่ตรงกับประเภทไฟล์')
+  it('retries incident code collisions', async () => {
+    const repository = new MemoryIncidentRepository()
+    const codes = ['SOS-20260726-AAAA', 'SOS-20260726-AAAA', 'SOS-20260726-BBBB']
+    const service = new IncidentService(repository, () => codes.shift() ?? 'SOS-20260726-CCCC')
+    await service.createIncident(base)
+    const second = await service.createIncident({ ...base, title: 'ไฟทางเดินดับ' })
+    expect(second.incident.code).toBe('SOS-20260726-BBBB')
   })
 })

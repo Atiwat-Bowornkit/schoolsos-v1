@@ -1,12 +1,10 @@
 export const TIMELINE_EVENT_TYPES = [
   'INCIDENT_CREATED',
-  'AI_ANALYZED',
-  'ASSIGNEE_UPDATED',
-  'PRIORITY_UPDATED',
+  'ASSIGNEE_CHANGED',
+  'PRIORITY_CHANGED',
   'STATUS_CHANGED',
-  'PROGRESS_RECORDED',
+  'NOTE_ADDED',
   'INCIDENT_RESOLVED',
-  'CLOSURE_SUMMARY_GENERATED',
 ] as const
 
 export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number]
@@ -15,10 +13,10 @@ export interface TimelineEvent {
   id: string
   incidentId: string
   eventType: TimelineEventType
-  title: string
-  description?: string
-  actorName: string
+  actorName?: string
+  message: string
+  metadataJson?: string
   createdAt: string
 }
 
-export type CreateTimelineEventInput = Omit<TimelineEvent, 'id' | 'createdAt'>
+export type NewTimelineEvent = Omit<TimelineEvent, 'id' | 'createdAt'>

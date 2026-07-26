@@ -3,61 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <meta name="theme-color" content="#173B57" />
+    <meta name="description" content="ระบบแจ้ง ประสานงาน ติดตาม และปิดเหตุภายในโรงเรียน" />
     <title>School SOS</title>
-    <meta name="title" content="School SOS" />
-    <meta
-      name="description"
-      content="ระบบแจ้ง ประสานงาน และติดตามการแก้ไขปัญหาภายในโรงเรียน"
-    />
-    <meta name="keywords" content="School SOS, แจ้งเหตุ, โรงเรียน, ติดตามเหตุ" />
-    <meta name="author" content="School SOS Team" />
-    <meta name="robots" content="index, follow" />
-    <meta name="language" content="Thai" />
-    <meta name="theme-color" content="#1E40AF" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="School SOS" />
-    <meta
-      property="og:description"
-      content="ระบบแจ้ง ประสานงาน และติดตามการแก้ไขปัญหาภายในโรงเรียน"
-    />
-    <meta property="og:site_name" content="School SOS" />
-    <meta property="og:locale" content="th_TH" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="School SOS" />
-    <meta
-      name="twitter:description"
-      content="ระบบแจ้ง ประสานงาน และติดตามการแก้ไขปัญหาภายในโรงเรียน"
-    />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="School SOS" />
-    <meta name="msapplication-TileColor" content="#1E40AF" />
-    <link rel="stylesheet" type="text/css" href="/loader.css" />
   </head>
-
   <body>
-    <div id="app">
-      <div id="loading-bg">
-        <div class="loading-logo" aria-label="School SOS">
-          <strong style="color: #1e40af; font: 700 28px/1 Arial, sans-serif">SOS</strong>
-        </div>
-        <div class="loading">
-          <div class="effect-1 effects"></div>
-          <div class="effect-2 effects"></div>
-          <div class="effect-3 effects"></div>
-        </div>
-      </div>
-    </div>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
-    <script>
-      const loaderColor =
-        localStorage.getItem("school-sos-initial-loader-bg") || "#FFFFFF";
-      const primaryColor =
-        localStorage.getItem("school-sos-initial-loader-color") || "#1E40AF";
-      document.documentElement.style.setProperty("--initial-loader-bg", loaderColor);
-      document.documentElement.style.setProperty("--initial-loader-color", primaryColor);
-    </script>
   </body>
 </html>

@@ -1,145 +1,64 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { describeRoute, resolver, validator } from 'hono-openapi'
 import {
-  addProgressSchema,
-  changeStatusSchema,
+  addNoteSchema,
   createIncidentSchema,
+  detailResponseSchema,
   errorResponseSchema,
   idParamSchema,
-  incidentDetailResponseSchema,
-  incidentListResponseSchema,
-  listIncidentQuerySchema,
+  listResponseSchema,
   resolveIncidentSchema,
   updateIncidentSchema,
 } from '../schemas/incident-schemas'
 import type { AppEnv } from '../types'
 
-const jsonContent = (schema: Parameters<typeof resolver>[0]) => ({
+const content = (schema: Parameters<typeof resolver>[0]) => ({
   'application/json': { schema: resolver(schema) },
 })
 
+type ValidationResult = {
+  success: boolean
+  error?: readonly unknown[]
+}
+
+const validationHook = (result: ValidationResult, c: Context<AppEnv>) => {
+  if (!result.success) {
+    return c.json({
+      success: false as const,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'ข้อมูลที่ส่งมาไม่ถูกต้อง',
+        details: result.error,
+      },
+    }, 400)
+  }
+}
+
 export function createIncidentRouter() {
   const router = new Hono<AppEnv>()
-
-  router.get(
-    '/',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'List incidents',
-      responses: {
-        200: { description: 'Incidents ordered by priority and recency', content: jsonContent(incidentListResponseSchema) },
-        400: { description: 'Invalid filters', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('query', listIncidentQuerySchema),
-    c => c.get('container').incidentHandler.list(c)
-  )
-
-  router.post(
-    '/',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'Create an incident',
-      responses: {
-        201: { description: 'Incident created', content: jsonContent(incidentDetailResponseSchema) },
-        400: { description: 'Invalid input', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('json', createIncidentSchema),
-    c => c.get('container').incidentHandler.create(c)
-  )
-
-  router.get(
-    '/:id',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'Get incident detail and timeline',
-      responses: {
-        200: { description: 'Incident detail', content: jsonContent(incidentDetailResponseSchema) },
-        404: { description: 'Incident not found', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('param', idParamSchema),
-    c => c.get('container').incidentHandler.get(c)
-  )
-
-  router.patch(
-    '/:id',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'Update assignment or confirmed priority',
-      responses: {
-        200: { description: 'Incident updated', content: jsonContent(incidentDetailResponseSchema) },
-        400: { description: 'Invalid input', content: jsonContent(errorResponseSchema) },
-        404: { description: 'Incident not found', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('param', idParamSchema),
-    validator('json', updateIncidentSchema),
-    c => c.get('container').incidentHandler.update(c)
-  )
-
-  router.post(
-    '/:id/status',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'Change incident status',
-      responses: {
-        200: { description: 'Status changed', content: jsonContent(incidentDetailResponseSchema) },
-        400: { description: 'Invalid transition', content: jsonContent(errorResponseSchema) },
-        404: { description: 'Incident not found', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('param', idParamSchema),
-    validator('json', changeStatusSchema),
-    c => c.get('container').incidentHandler.changeStatus(c)
-  )
-
-  router.post(
-    '/:id/progress',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'Record incident progress',
-      responses: {
-        200: { description: 'Progress recorded', content: jsonContent(incidentDetailResponseSchema) },
-        400: { description: 'Invalid input', content: jsonContent(errorResponseSchema) },
-        404: { description: 'Incident not found', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('param', idParamSchema),
-    validator('json', addProgressSchema),
-    c => c.get('container').incidentHandler.addProgress(c)
-  )
-
-  router.post(
-    '/:id/resolve',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'Resolve an incident and generate closure summary',
-      responses: {
-        200: { description: 'Incident resolved', content: jsonContent(incidentDetailResponseSchema) },
-        400: { description: 'Incident cannot be resolved', content: jsonContent(errorResponseSchema) },
-        404: { description: 'Incident not found', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('param', idParamSchema),
-    validator('json', resolveIncidentSchema),
-    c => c.get('container').incidentHandler.resolve(c)
-  )
-
-  router.get(
-    '/:id/image',
-    describeRoute({
-      tags: ['Incidents'],
-      summary: 'Get the incident image',
-      responses: {
-        200: { description: 'Incident image' },
-        404: { description: 'Image not found', content: jsonContent(errorResponseSchema) },
-      },
-    }),
-    validator('param', idParamSchema),
-    c => c.get('container').incidentHandler.image(c)
-  )
-
+  router.get('/', describeRoute({
+    tags: ['Incidents'], summary: 'List incidents',
+    responses: { 200: { description: 'Incident list and summary', content: content(listResponseSchema) } },
+  }), c => c.get('container').incidentHandler.list(c))
+  router.post('/', describeRoute({
+    tags: ['Incidents'], summary: 'Create incident',
+    responses: {
+      201: { description: 'Created', content: content(detailResponseSchema) },
+      400: { description: 'Invalid input', content: content(errorResponseSchema) },
+    },
+  }), validator('json', createIncidentSchema, validationHook), c => c.get('container').incidentHandler.create(c))
+  router.get('/:id', describeRoute({
+    tags: ['Incidents'], summary: 'Get incident detail',
+    responses: {
+      200: { description: 'Detail', content: content(detailResponseSchema) },
+      404: { description: 'Not found', content: content(errorResponseSchema) },
+    },
+  }), validator('param', idParamSchema, validationHook), c => c.get('container').incidentHandler.get(c))
+  router.patch('/:id', validator('param', idParamSchema, validationHook), validator('json', updateIncidentSchema, validationHook),
+    c => c.get('container').incidentHandler.update(c))
+  router.post('/:id/notes', validator('param', idParamSchema, validationHook), validator('json', addNoteSchema, validationHook),
+    c => c.get('container').incidentHandler.note(c))
+  router.post('/:id/resolve', validator('param', idParamSchema, validationHook), validator('json', resolveIncidentSchema, validationHook),
+    c => c.get('container').incidentHandler.resolve(c))
   return router
 }

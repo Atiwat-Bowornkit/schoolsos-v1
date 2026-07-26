@@ -1,57 +1,54 @@
 import { Scalar } from '@scalar/hono-api-reference'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
 import { openAPIRouteHandler } from 'hono-openapi'
 import type { Container } from './di/container'
 import { AppError } from './domain/errors'
 import { createApiRouter } from './routers'
 import type { AppEnv, Bindings } from './types'
 
-// Runtime-agnostic app factory. Each entrypoint (server.ts, lambda.ts)
-// supplies its own container factory so the same routes/handlers run on
-// Cloudflare Workers (D1 + KV) and AWS Lambda alike.
 export function createApp(containerFactory: (env: Partial<Bindings>) => Container) {
   const app = new Hono<AppEnv>()
-
-  app.use('*', logger())
-  app.use('*', cors())
+  app.use('*', cors({
+    origin: (origin, c) => {
+      const allowed = (c.env?.ALLOWED_ORIGINS ?? 'http://localhost:5173')
+        .split(',').map((value: string) => value.trim())
+      return allowed.includes(origin) ? origin : allowed[0] ?? ''
+    },
+  }))
   app.use('*', async (c, next) => {
     c.set('container', containerFactory(c.env ?? {}))
     await next()
   })
-
-  app.get('/health', (c) => c.json({ status: 'ok' }))
+  app.get('/health', c => c.json({ success: true, data: { status: 'ok' } }))
   app.route('/api/v1', createApiRouter())
-
-  // API docs: /docs renders the Scalar UI from the generated OpenAPI spec
-  app.get(
-    '/openapi.json',
-    openAPIRouteHandler(app, {
-      documentation: {
-        info: {
-          title: 'School SOS API',
-          version: '1.0.0',
-          description: 'Incident reporting and coordination API for School SOS',
-        },
-        tags: [
-          { name: 'Incidents', description: 'Incident workflow and timeline' },
-          { name: 'AI', description: 'Incident analysis with safe fallback' },
-        ],
+  app.get('/openapi.json', openAPIRouteHandler(app, {
+    documentation: {
+      info: {
+        title: 'School SOS API',
+        version: '1.0.0',
+        description: 'ระบบแจ้ง ประสานงาน ติดตาม และปิดเหตุภายในโรงเรียน',
       },
-    })
-  )
-  app.get('/docs', Scalar({ url: '/openapi.json', pageTitle: 'School SOS API Docs' }))
-
-  app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404))
-
-  app.onError((err, c) => {
-    if (err instanceof AppError) {
-      return c.json({ error: { code: err.code, message: err.message } }, err.status as 400)
+      tags: [{ name: 'Incidents', description: 'Incident workflow and timeline' }],
+    },
+  }))
+  app.get('/docs', Scalar({ url: '/openapi.json', pageTitle: 'School SOS API' }))
+  app.notFound(c => c.json({
+    success: false as const,
+    error: { code: 'INCIDENT_NOT_FOUND', message: 'ไม่พบหน้าหรือข้อมูลที่ต้องการ' },
+  }, 404))
+  app.onError((error, c) => {
+    if (error instanceof AppError) {
+      return c.json({
+        success: false as const,
+        error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) },
+      }, error.status as 400)
     }
-    console.error('Unhandled error:', err instanceof Error ? err.message : 'Unknown error')
-    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'ระบบไม่สามารถดำเนินการได้' } }, 500)
+    console.error('Unhandled School SOS error')
+    return c.json({
+      success: false as const,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: 'ระบบไม่สามารถดำเนินการได้ กรุณาลองใหม่' },
+    }, 500)
   })
-
   return app
 }

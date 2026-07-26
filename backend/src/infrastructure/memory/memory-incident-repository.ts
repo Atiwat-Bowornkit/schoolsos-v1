@@ -1,60 +1,41 @@
-import type {
-  Incident,
-  IncidentFilters,
-  IncidentPriority,
-  IncidentResolution,
-  IncidentStatus,
-} from '../../domain/entities/incident'
-import type { IncidentRepository } from '../../domain/repositories/incident-repository'
-
-const priorityRank: Record<IncidentPriority, number> = {
-  HIGH: 1,
-  MEDIUM: 2,
-  LOW: 3,
-  UNASSIGNED: 4,
-}
+import type { Incident } from '../../domain/entities/incident'
+import type { NewTimelineEvent, TimelineEvent } from '../../domain/entities/incident-timeline'
+import type { IncidentDetail, IncidentRepository } from '../../domain/repositories/incident-repository'
 
 export class MemoryIncidentRepository implements IncidentRepository {
   private readonly incidents = new Map<string, Incident>()
+  private readonly timeline = new Map<string, TimelineEvent[]>()
 
-  async findAll(filters: IncidentFilters = {}): Promise<Incident[]> {
+  async findAll(): Promise<Incident[]> {
     return [...this.incidents.values()]
-      .filter(incident => !filters.status || incident.status === filters.status)
-      .filter(incident => !filters.priority || incident.confirmedPriority === filters.priority)
-      .sort((a, b) => priorityRank[a.confirmedPriority] - priorityRank[b.confirmedPriority]
-        || b.createdAt.localeCompare(a.createdAt))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(item => ({ ...item, imageData: undefined, imageMimeType: undefined }))
   }
 
-  async findById(id: string): Promise<Incident | null> {
-    return this.incidents.get(id) ?? null
-  }
-
-  async create(incident: Incident): Promise<Incident> {
-    this.incidents.set(incident.id, { ...incident })
+  async findDetail(id: string): Promise<IncidentDetail | null> {
+    const incident = this.incidents.get(id)
     return incident
+      ? { incident: { ...incident }, timeline: [...(this.timeline.get(id) ?? [])] }
+      : null
   }
 
-  async updateAssignment(id: string, assigneeName: string, updatedAt: string): Promise<Incident | null> {
-    return this.update(id, { assigneeName, updatedAt })
+  async createWithTimeline(incident: Incident, event: NewTimelineEvent): Promise<boolean> {
+    if ([...this.incidents.values()].some(item => item.code === incident.code)) return false
+    this.incidents.set(incident.id, { ...incident })
+    this.timeline.set(incident.id, [this.toEvent(event)])
+    return true
   }
 
-  async updatePriority(id: string, confirmedPriority: IncidentPriority, updatedAt: string): Promise<Incident | null> {
-    return this.update(id, { confirmedPriority, updatedAt })
+  async saveWithTimeline(incident: Incident, events: NewTimelineEvent[]): Promise<IncidentDetail | null> {
+    if (!this.incidents.has(incident.id)) return null
+    this.incidents.set(incident.id, { ...incident })
+    const current = this.timeline.get(incident.id) ?? []
+    current.push(...events.map(event => this.toEvent(event)))
+    this.timeline.set(incident.id, current)
+    return this.findDetail(incident.id)
   }
 
-  async updateStatus(id: string, status: IncidentStatus, updatedAt: string): Promise<Incident | null> {
-    return this.update(id, { status, updatedAt })
-  }
-
-  async addResolution(id: string, resolution: IncidentResolution): Promise<Incident | null> {
-    return this.update(id, { ...resolution, status: 'RESOLVED' })
-  }
-
-  private update(id: string, changes: Partial<Incident>): Incident | null {
-    const existing = this.incidents.get(id)
-    if (!existing) return null
-    const updated = { ...existing, ...changes }
-    this.incidents.set(id, updated)
-    return updated
+  private toEvent(event: NewTimelineEvent): TimelineEvent {
+    return { ...event, id: crypto.randomUUID(), createdAt: new Date().toISOString() }
   }
 }

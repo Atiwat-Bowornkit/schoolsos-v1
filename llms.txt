@@ -1,51 +1,26 @@
-# School SOS — Full-Stack MVP
+# School SOS — Agent Context
 
-Source of truth สำหรับ agent:
+MASTERPROMPT มีลำดับสูงกว่าเอกสารเดิมและ starter template
 
-- Product: ระบบแจ้ง ประสานงาน และติดตามเหตุภายในโรงเรียน
-- Routes: `/`, `/report`, `/incidents/:id` เท่านั้น
-- Out of scope: login, RBAC, users, notifications, real-time, map, image AI, analytics
-- Backend: Hono/Workers/D1/KV/Zod/OpenAPI, Clean Architecture
-- Frontend: Vue 3/Vuetify/Pinia/Vite, flow `Page → Store → API → Backend`
-- Persistence: D1 เก็บ Incident/Timeline; KV เก็บภาพ; frontend state ใช้ UI/Form เท่านั้น
+- Product: ระบบแจ้งและติดตามเหตุภายในโรงเรียน
+- Routes: `/dashboard`, `/report`, `/incidents/:id`, catch-all
+- Backend API: `/health`, `/docs`, `/openapi.json`, และ incident endpoints เท่านั้น
+- Status: `NEW → ACKNOWLEDGED → IN_PROGRESS → RESOLVED`; ห้ามย้อนกลับ/ข้ามขั้น
+- Priority: `LOW | MEDIUM | HIGH | CRITICAL`
+- Effective priority: `confirmedPriority ?? reportedPriority`
+- ACKNOWLEDGED ต้องมี assignee และ confirmed priority
+- Note ทำได้เฉพาะ IN_PROGRESS; RESOLVED เป็น read-only
+- ทุก manager mutation ต้องมี actorName
+- D1 mutation กับ Timeline ต้องอยู่ใน `DB.batch` เดียวกัน
+- ภาพเป็น JPEG/PNG/WebP Data URL ไม่เกิน decoded 1 MB; List API ห้ามส่งภาพ
+- Closure Summary เป็น pure deterministic function; ไม่มี AI
+- Out of scope: login, RBAC, users, search/filter/pagination, KV, R2, notifications, real-time, Lambda
 
-## Domain
-
-- Status: `NEW | ACKNOWLEDGED | IN_PROGRESS | RESOLVED`
-- Priority: `UNASSIGNED | LOW | MEDIUM | HIGH`
-- Categories: `BUILDING | GENERAL_SAFETY | UTILITY | HEALTH_ACCIDENT | EQUIPMENT_TECHNOLOGY | CLEANLINESS_HYGIENE | OTHER`
-- Forward: `NEW → ACKNOWLEDGED → IN_PROGRESS → RESOLVED`
-- Demo backward: `ACKNOWLEDGED → NEW`, `IN_PROGRESS → ACKNOWLEDGED`
-- Resolve ต้องมี assignee, ต้องอยู่ `IN_PROGRESS`, มี action/result
-- ทุก mutation สร้าง Timeline จาก Backend
-
-## Key files
-
-- `README.md`: setup, scope, operations
-- `deploy-plan.md`: Cloudflare/GitHub deployment
-- `docs/api-contract.md`: public contract
-- `docs/domain-model.md`: domain and business rules
-- `docs/deepseek-integration.md`: AI boundary/fallback
-- `docs/golden-flow.md`: demo checklist
-- `docs/qa-evidence.md`: actual executed evidence only
-- `backend/src/services/incident-service.ts`: business rules owner
-- `backend/src/di/container.ts`: runtime wiring
-- `frontend/src/stores/`: UI/form orchestration
-
-## Required conventions
-
-- Domain ห้าม import Hono/D1/KV
-- Service รับ repository/AI contracts ผ่าน interface
-- API response ใช้ `{ data }` หรือ `{ error: { code, message } }`
-- Incident Detail เท่านั้นที่ได้ relative `imageUrl`; domain เก็บ `imageKey`/MIME
-- DeepSeek ผ่าน Backend เท่านั้น, JSON + Zod, 12s timeout, one follow-up, fallback ทุก failure mode
-- Environment ใช้ `VITE_BACKEND_URL` ชื่อเดียว
-- Backend ใช้ npm; Frontend ใช้ pnpm 8.6.2
-- ห้าม commit secret, Wrangler IDs จริง หรือข้อมูลนักเรียน
-
-## Validation commands
+Commands:
 
 ```text
-backend: npm test; npm run typecheck; npm run build:lambda; npm run db:migrate:local
+backend: npm test; npm run typecheck; npm run build; npm run db:migrate:local; npm run db:seed:local
 frontend: pnpm test; pnpm typecheck; pnpm lint; pnpm build
 ```
+
+อ่าน `docs/API_CONTRACT.md`, `docs/DECISIONS.md` และ `docs/DEVELOPER_HANDOFF.md` ก่อนแก้ domain หรือ deployment

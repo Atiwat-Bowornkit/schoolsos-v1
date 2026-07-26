@@ -1,17 +1,14 @@
-import type {
-  Incident,
-  IncidentFilters,
-  IncidentPriority,
-  IncidentResolution,
-  IncidentStatus,
-} from '../entities/incident'
+import type { Incident } from '../entities/incident'
+import type { NewTimelineEvent, TimelineEvent } from '../entities/incident-timeline'
+
+export interface IncidentDetail {
+  incident: Incident
+  timeline: TimelineEvent[]
+}
 
 export interface IncidentRepository {
-  findAll(filters?: IncidentFilters): Promise<Incident[]>
-  findById(id: string): Promise<Incident | null>
-  create(incident: Incident): Promise<Incident>
-  updateAssignment(id: string, assigneeName: string, updatedAt: string): Promise<Incident | null>
-  updatePriority(id: string, priority: IncidentPriority, updatedAt: string): Promise<Incident | null>
-  updateStatus(id: string, status: IncidentStatus, updatedAt: string): Promise<Incident | null>
-  addResolution(id: string, resolution: IncidentResolution): Promise<Incident | null>
+  findAll(): Promise<Incident[]>
+  findDetail(id: string): Promise<IncidentDetail | null>
+  createWithTimeline(incident: Incident, event: NewTimelineEvent): Promise<boolean>
+  saveWithTimeline(incident: Incident, events: NewTimelineEvent[]): Promise<IncidentDetail | null>
 }

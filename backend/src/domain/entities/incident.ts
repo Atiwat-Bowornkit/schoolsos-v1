@@ -1,102 +1,76 @@
 export const INCIDENT_STATUSES = ['NEW', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED'] as const
 export type IncidentStatus = (typeof INCIDENT_STATUSES)[number]
 
-export const INCIDENT_PRIORITIES = ['UNASSIGNED', 'LOW', 'MEDIUM', 'HIGH'] as const
+export const INCIDENT_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
 export type IncidentPriority = (typeof INCIDENT_PRIORITIES)[number]
 
 export const INCIDENT_CATEGORIES = [
-  'BUILDING',
+  'BUILDING_AND_FACILITIES',
   'GENERAL_SAFETY',
-  'UTILITY',
-  'HEALTH_ACCIDENT',
-  'EQUIPMENT_TECHNOLOGY',
-  'CLEANLINESS_HYGIENE',
+  'UTILITIES',
+  'HEALTH_AND_ACCIDENT',
+  'EQUIPMENT_AND_TECHNOLOGY',
+  'CLEANLINESS_AND_HYGIENE',
   'OTHER',
 ] as const
 export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number]
 
-export type AiSource = 'deepseek' | 'fallback'
-
 export interface Incident {
   id: string
-  incidentCode: string
-  rawDescription: string
+  code: string
   title: string
-  summary: string
+  description: string
   category: IncidentCategory
   location: string
   reporterName?: string
-  suggestedPriority: IncidentPriority
-  confirmedPriority: IncidentPriority
-  priorityReason: string
-  status: IncidentStatus
-  assigneeName?: string
-  followUpQuestion?: string
-  followUpAnswer?: string
-  imageKey?: string
+  imageData?: string
   imageMimeType?: string
-  actionTaken?: string
+  reportedPriority: IncidentPriority
+  confirmedPriority?: IncidentPriority
+  assignedTo?: string
+  status: IncidentStatus
+  resolutionAction?: string
   resolutionResult?: string
   resolutionNote?: string
   closureSummary?: string
-  aiAnalysisSource: AiSource
-  aiClosureSource?: AiSource
   createdAt: string
   updatedAt: string
   resolvedAt?: string
 }
 
-export interface IncidentFilters {
-  status?: IncidentStatus
-  priority?: IncidentPriority
+export interface IncidentSummaryCounts {
+  new: number
+  acknowledged: number
+  inProgress: number
+  resolved: number
 }
 
 export interface CreateIncidentInput {
-  rawDescription: string
   title: string
-  summary: string
+  description: string
   category: IncidentCategory
   location: string
+  reportedPriority: IncidentPriority
   reporterName?: string
-  suggestedPriority: IncidentPriority
-  confirmedPriority: IncidentPriority
-  priorityReason: string
-  followUpQuestion?: string
-  followUpAnswer?: string
-  imageDataUrl?: string
-  aiAnalysisSource: AiSource
+  imageData?: string
+  imageMimeType?: string
 }
 
 export interface UpdateIncidentInput {
-  assigneeName?: string
+  actorName: string
+  assignedTo?: string
   confirmedPriority?: IncidentPriority
-  actorName?: string
+  status?: IncidentStatus
 }
 
-export interface ChangeIncidentStatusInput {
-  status: IncidentStatus
-  actorName?: string
-  note?: string
-}
-
-export interface AddProgressInput {
-  description: string
-  actorName?: string
+export interface AddIncidentNoteInput {
+  actorName: string
+  message: string
 }
 
 export interface ResolveIncidentInput {
-  actionTaken: string
+  actorName: string
+  resolutionAction: string
   resolutionResult: string
   resolutionNote?: string
-  actorName?: string
-}
-
-export interface IncidentResolution {
-  actionTaken: string
-  resolutionResult: string
-  resolutionNote?: string
-  closureSummary: string
-  aiClosureSource: AiSource
-  resolvedAt: string
-  updatedAt: string
 }
