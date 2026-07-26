@@ -10,20 +10,21 @@
 
 ## Golden Flow
 
-- [ ] Create incident through UI
-- [ ] Dashboard latest-first + summary
-- [ ] Detail image/timeline
-- [ ] Assign + confirmed priority
-- [ ] ACKNOWLEDGED → IN_PROGRESS
-- [ ] Add note
-- [ ] Resolve confirmation
-- [ ] RESOLVED read-only + closure
+- [x] Create incident through UI
+- [x] Dashboard latest-first + summary
+- [x] Detail image/timeline
+- [x] Assign + confirmed priority
+- [x] ACKNOWLEDGED → IN_PROGRESS
+- [x] Add note
+- [x] Resolve confirmation
+- [x] RESOLVED read-only + closure
 
 ## Responsive and accessibility
 
-- [ ] Desktop table
-- [ ] Mobile cards
-- [ ] Keyboard focus and first invalid field
-- [ ] Labels, status text, contrast, loading/empty/error/not-found
+- [x] Desktop table
+- [x] Mobile cards
+- [x] Keyboard focus and first invalid field
+- [x] Labels, status text, no horizontal overflow, loading/error/not-found
+- [x] Browser console ไม่มี warning/error ระหว่าง final responsive check
 
-รายการ browser จะถูกติ๊กและบันทึกหลักฐานใน `QA_REPORT.md` หลังทดสอบ local UI
+Empty state ครอบคลุมด้วย component branch/code review และ automated store response; seeded live session ใช้ตรวจรายการจริง

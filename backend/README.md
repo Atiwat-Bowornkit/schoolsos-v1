@@ -1,24 +1,19 @@
 # School SOS Backend
 
-Hono API สำหรับ Cloudflare Workers ใช้ D1 เป็นข้อมูลหลัก, KV เก็บภาพ และ Clean Architecture แยก Domain/Service ออกจาก runtime
-
-## Architecture
+Hono API บน Cloudflare Workers ใช้ D1 เป็น persistence เดียว
 
 ```text
-Router → Handler → IncidentService → Repository contract
-                                      ├── D1 incident/timeline
-                                      ├── KV image
-                                      └── Memory (tests/Lambda build)
+Router → Handler → IncidentService → IncidentRepository
+                                      ├─ D1 (runtime)
+                                      └─ Memory (tests)
 ```
-
-Business rules อยู่ใน `src/services/incident-service.ts`; Domain ไม่ผูก Hono, D1, KV หรือ URL
 
 ## Local
 
 ```powershell
-npm install
-Copy-Item wrangler.example.jsonc wrangler.jsonc
+npm ci
 npm run db:migrate:local
+npm run db:seed:local
 npm run dev
 ```
 
@@ -26,56 +21,22 @@ npm run dev
 - Docs: `http://localhost:8787/docs`
 - OpenAPI: `http://localhost:8787/openapi.json`
 
-## Commands
+## Checks
 
 ```powershell
 npm test
 npm run typecheck
-npm run build:lambda
-npm run db:migrate:local
-npm run db:migrate:remote
-npm run deploy
+npm run build
 ```
 
-Backend ใช้ npm และ `package-lock.json`
+## Rules
 
-## Persistence
+- Workflow: `NEW → ACKNOWLEDGED → IN_PROGRESS → RESOLVED`
+- ทุก manager mutation ต้องมี `actorName`
+- ACK ต้องมี assignee และ confirmed priority
+- Note เฉพาะ IN_PROGRESS; RESOLVED read-only
+- Mutation และ Timeline ใช้ D1 batch เดียวกัน
+- JPEG/PNG/WebP Data URL decoded ไม่เกิน 1 MB; List API ไม่ส่งภาพ
+- ไม่มี AI, KV, Lambda, login หรือ RBAC
 
-- D1 `school-sos-db`: `incidents`, `incident_timeline`
-- KV binding `KV`: JPEG/PNG/WebP หนึ่งภาพต่อ Incident ขนาด decoded ไม่เกิน 1 MB
-- Memory repositories: unit tests และ Lambda bundle เท่านั้น; ไม่ใช่ production persistence
-
-## AI
-
-DeepSeek adapter ใช้ native `fetch`, model `deepseek-v4-flash`, JSON mode, thinking disabled, timeout 12 วินาที และ Zod validation Resilient adapter คืน Template fallback เมื่อ key/network/HTTP/content/JSON/schema ล้มเหลว
-
-ตั้ง secret:
-
-```powershell
-npx wrangler secret put DEEPSEEK_API_KEY
-```
-
-Vars ที่ไม่ลับ: `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`
-
-## Public API
-
-```text
-GET  /health
-GET  /docs
-GET  /openapi.json
-GET  /api/v1/incidents
-POST /api/v1/incidents
-GET  /api/v1/incidents/:id
-PATCH /api/v1/incidents/:id
-POST /api/v1/incidents/:id/status
-POST /api/v1/incidents/:id/progress
-POST /api/v1/incidents/:id/resolve
-GET  /api/v1/incidents/:id/image
-POST /api/v1/ai/incidents/analyze
-```
-
-รายละเอียด request/response อยู่ที่ `../docs/api-contract.md`
-
-## Production note
-
-ระบบ MVP ไม่มี Authentication/RBAC และรับ actor name จาก request จึงเหมาะกับ demo เท่านั้น ต้องเพิ่ม identity, authorization, rate limiting และ retention policy ก่อนใช้กับข้อมูลจริง
+ดู public contract ที่ `../docs/API_CONTRACT.md`

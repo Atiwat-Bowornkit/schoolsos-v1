@@ -28,7 +28,7 @@
 - old report/store/model and demo-oriented app shell/routing
 - obsolete AI/API/domain/QA documents
 
-Frontend template filesที่ไม่อยู่ใน new build graph ยังอาจคงอยู่เป็น inert technical assets; `tsconfig`, Vite และ lint scope ชี้เฉพาะ School SOS implementation ใหม่
+Frontend legacy source directories, generated declarations, Storybook/demo assets, mock service worker และ Docker/nginx template ถูกลบ เหลือเฉพาะ School SOS source, favicon และ robots file
 
 ## Database
 
